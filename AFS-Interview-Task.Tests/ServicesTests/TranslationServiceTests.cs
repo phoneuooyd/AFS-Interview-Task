@@ -86,4 +86,25 @@ public class TranslationServiceTests
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }
+
+    [Fact]
+    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndDoesNotPersistLog()
+    {
+        var providerMock = new Mock<ITranslatorProvider>();
+        providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
+
+        var repositoryMock = new Mock<ITranslationLogRepository>();
+        var correlationAccessorMock = new Mock<ICorrelationIdAccessor>();
+        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(Guid.NewGuid());
+
+        var factory = new TranslatorProviderFactory(new List<ITranslatorProvider> { providerMock.Object });
+        var sut = new TranslationService(factory, repositoryMock.Object, correlationAccessorMock.Object);
+
+        var request = new TranslateRequest { Text = "hello", Translator = "unknown" };
+
+        await Assert.ThrowsAsync<UnsupportedTranslatorException>(() => sut.TranslateAsync(request, CancellationToken.None));
+
+        providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

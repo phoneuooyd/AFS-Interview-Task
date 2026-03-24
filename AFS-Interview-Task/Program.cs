@@ -28,14 +28,26 @@ builder.Services.AddProblemDetails();
 // Middleware & Accessories
 builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
-// External providers 
-builder.Services.AddHttpClient<ITranslatorProvider, FunTranslationsProvider>(client =>
+// Translation routing configuration - choose the leetspeak backend in appsettings or user-secrets
+builder.Services.Configure<LeetSpeakTranslationOptions>(builder.Configuration.GetSection("LeetSpeakTranslation"));
+builder.Services.Configure<RapidApiLeetDecoderOptions>(builder.Configuration.GetSection("RapidApiLeetDecoder"));
+
+// External providers
+builder.Services.AddHttpClient<FunTranslationsProvider>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["FunTranslations:BaseUrl"] ?? "https://api.funtranslations.com/translate/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 
+builder.Services.AddHttpClient<RapidApiLeetSpeakDecoderProvider>(client =>
+{
+    var baseUrl = builder.Configuration["RapidApiLeetDecoder:BaseUrl"] ?? "https://leet-speak-encoder-and-decoder-api-apiverve.p.rapidapi.com/";
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 // Providers factory
+builder.Services.AddScoped<ITranslatorProvider, LeetSpeakFallbackProvider>();
 builder.Services.AddScoped<TranslatorProviderFactory>();
 
 // Scoped services & repos
@@ -55,15 +67,16 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<CorrelationIdMiddleware>();
 
-// app.UseHttpsRedirection(); // Wyłączone ze względu na brak certyfikatu HTTPS w środowisku dev
+// dev env doesn't have https thus off
+// app.UseHttpsRedirection(); 
 
 app.MapControllers();
 
-// Przekierowanie głównego URLa od razu do panelu Swagger UI
+// Swagger UI
 app.MapGet("/", context =>
 {
     context.Response.Redirect("/swagger");
     return System.Threading.Tasks.Task.CompletedTask;
 });
 
-app.Run();
+await app.RunAsync();

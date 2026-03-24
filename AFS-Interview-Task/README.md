@@ -16,6 +16,7 @@ This solution follows a simplified **Clean Architecture** style organized in log
 
 *   **SQLite database**: chosen to enable instant local execution without prerequisites.
 *   **Factory Pattern (`TranslatorProviderFactory`)**: used to retrieve the correct API provider without requiring changes to fundamental application code. Embraces OCP (Open-Closed Principle).
+*   **Configurable leetspeak backend**: choose the actual translation endpoint in configuration through `LeetSpeakTranslation:Provider` instead of hard-coding a fallback path.
 *   **Global Logging Middleware**: An approach mapping specific native and custom exceptions (`RateLimitException`) into `ProblemDetails` format (RFC 7807) to standardise error responses.
 *   **Decoupled Auditing**: Service catches exceptions and logs both `Success` & `Failed` states including translation duration and `CorrelationId` without relying heavily on 3rd party resilience packages like Polly. 
 
@@ -35,13 +36,25 @@ This solution follows a simplified **Clean Architecture** style organized in log
    ```
 3. Look at the local URL returned by the console. Access `https://localhost:<port>/swagger` to experiment with endpoints using **Swagger UI**.
 
+## How to choose the leetspeak backend
+
+Set `LeetSpeakTranslation:Provider` in `appsettings.json` or `user-secrets`:
+
+- `funtranslations` -> calls FunTranslations
+- `rapidapi` -> calls the RapidAPI leet decoder
+
+Example user-secrets command:
+```bash
+dotnet user-secrets set "LeetSpeakTranslation:Provider" "rapidapi"
+```
+
 ## How to add a new translator provider
 
 To extend the system and add a newly supported translation mode:
 1. Create a class implementing `ITranslatorProvider` interface. Set its `TranslatorName` property (e.g. `minion`).
 2. Add your logic to `TranslateAsync(string text, CancellationToken ct)`. You can define new response models in your new class namespace if talking to a new endpoint.
 3. Open `Program.cs` and register your provider in Dependency Injection using `.AddHttpClient<ITranslatorProvider, MyNewProvider>()`.
-   *The `TranslatorProviderFactory` will automatically extract it and begin supporting requests using your `TranslatorName`*. 
+   *The `TranslatorProviderFactory` will automatically extract it and begin supporting requests using your `TranslatorName`*.
 
 ## Testing
 

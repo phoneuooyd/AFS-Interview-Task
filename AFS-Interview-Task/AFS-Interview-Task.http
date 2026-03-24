@@ -1,0 +1,6 @@
+@AFS_Interview_Task_HostAddress = http://localhost:5239
+
+GET {{AFS_Interview_Task_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

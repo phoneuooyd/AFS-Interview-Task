@@ -49,6 +49,6 @@ We provide xUnit test suites mocking the external logic without touching externa
 
 Run all tests via:
 ```bash
-dotnet test
+dotnet test ../AFS-Interview-Task.sln
 ```
 *(Tests use an InMemory SQLite database and mocked services Moq for testing complex HTTP behaviours directly without external calls)*.

@@ -88,14 +88,15 @@ public class TranslationServiceTests
     }
 
     [Fact]
-    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndPersistsFailureLog()
+    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndPersistsAuditLog()
     {
         var providerMock = new Mock<ITranslatorProvider>();
         providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
 
         var repositoryMock = new Mock<ITranslationLogRepository>();
+        var correlationId = Guid.NewGuid();
         var correlationAccessorMock = new Mock<ICorrelationIdAccessor>();
-        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(Guid.NewGuid());
+        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(correlationId);
 
         var factory = new TranslatorProviderFactory(new List<ITranslatorProvider> { providerMock.Object });
         var sut = new TranslationService(factory, repositoryMock.Object, correlationAccessorMock.Object);
@@ -112,7 +113,9 @@ public class TranslationServiceTests
                     l.OutputText == null &&
                     !l.IsSuccess &&
                     l.ProviderStatusCode == 400 &&
-                    l.ErrorMessage == "The translator 'unknown' is not supported."),
+                    l.ErrorMessage == "The translator 'unknown' is not supported." &&
+                    l.CorrelationId == correlationId &&
+                    l.DurationMs >= 0),
                 It.IsAny<CancellationToken>()),
             Times.Once);
     }

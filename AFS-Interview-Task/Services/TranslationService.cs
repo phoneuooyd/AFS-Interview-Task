@@ -29,8 +29,6 @@ public class TranslationService : ITranslationService
 
     public async Task<TranslateResponse> TranslateAsync(TranslateRequest request, CancellationToken ct)
     {
-        var provider = _factory.GetProvider(request.Translator);
-        
         var log = new TranslationLog
         {
             Translator = request.Translator,
@@ -39,9 +37,11 @@ public class TranslationService : ITranslationService
         };
 
         var stopwatch = Stopwatch.StartNew();
+        ITranslatorProvider? provider = null;
 
         try
         {
+            provider = _factory.GetProvider(request.Translator);
             var translatedText = await provider.TranslateAsync(request.Text, ct);
             
             stopwatch.Stop();
@@ -59,6 +59,16 @@ public class TranslationService : ITranslationService
                 _correlationIdAccessor.CorrelationId,
                 log.DurationMs
             );
+        }
+        catch (UnsupportedTranslatorException ex)
+        {
+            stopwatch.Stop();
+            log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
+            log.IsSuccess = false;
+            log.ErrorMessage = ex.Message;
+            log.ProviderStatusCode = 400;
+            await _repository.AddAsync(log, ct);
+            throw;
         }
         catch (RateLimitException ex)
         {

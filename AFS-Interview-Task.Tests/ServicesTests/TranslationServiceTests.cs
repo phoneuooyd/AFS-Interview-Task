@@ -88,7 +88,7 @@ public class TranslationServiceTests
     }
 
     [Fact]
-    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndDoesNotPersistLog()
+    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndPersistsFailureLog()
     {
         var providerMock = new Mock<ITranslatorProvider>();
         providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
@@ -105,6 +105,15 @@ public class TranslationServiceTests
         await Assert.ThrowsAsync<UnsupportedTranslatorException>(() => sut.TranslateAsync(request, CancellationToken.None));
 
         providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
+        repositoryMock.Verify(r => r.AddAsync(
+                It.Is<TranslationLog>(l =>
+                    l.Translator == "unknown" &&
+                    l.InputText == "hello" &&
+                    l.OutputText == null &&
+                    !l.IsSuccess &&
+                    l.ProviderStatusCode == 400 &&
+                    l.ErrorMessage == "The translator 'unknown' is not supported."),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 }

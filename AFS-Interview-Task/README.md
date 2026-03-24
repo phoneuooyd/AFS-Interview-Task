@@ -1,67 +1,73 @@
 # AFS .NET Translation API
 
-A modern, Clean Architecture-inspired Web API built with .NET 8 for translating text via external providers with robust auditing.
+Web API in .NET 8 for text translation with external providers, structured around clean separation of concerns and auditable request flow.
 
-## Architecture & Design Decisions
+## Endpoint contract
 
-This solution follows a simplified **Clean Architecture** style organized in logical folders within a single project:
-- **Domain**: Pure models mapping to the database (e.g., `TranslationLog`).
-- **DTOs**: Data Transfer Objects specific for input validations and responses, avoiding database leakage.
-- **Repositories**: Encapsulates EF Core operations (filtering, saving).
-- **Providers**: Interactions with external services, cleanly separated through the `ITranslatorProvider` interface.
-- **Services**: Enforces business rules, timer logging, and data persistence before replying.
-- **Controllers & Middleware**: Web layer responsibilities safely isolated.
+### `POST /api/translate`
+Request body:
+- `text` (string, required, 1-500 chars)
+- `translator` (string, required), e.g. `"leetspeak"`
 
-### Key features
+Response:
+- `translatedText` (string)
+- `translator` (string)
+- `requestId` (GUID)
+- `durationMs` (int)
 
-*   **SQLite database**: chosen to enable instant local execution without prerequisites.
-*   **Factory Pattern (`TranslatorProviderFactory`)**: used to retrieve the correct API provider without requiring changes to fundamental application code. Embraces OCP (Open-Closed Principle).
-*   **Configurable leetspeak backend**: choose the actual translation endpoint in configuration through `LeetSpeakTranslation:Provider` instead of hard-coding a fallback path.
-*   **Global Logging Middleware**: An approach mapping specific native and custom exceptions (`RateLimitException`) into `ProblemDetails` format (RFC 7807) to standardise error responses.
-*   **Decoupled Auditing**: Service catches exceptions and logs both `Success` & `Failed` states including translation duration and `CorrelationId` without relying heavily on 3rd party resilience packages like Polly. 
+## Provider architecture (SOLID-friendly)
 
-## Requirements
+The provider layer is split into two responsibilities:
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+1. **Translator routing (`TranslatorProviderFactory`)**
+   - Chooses provider implementation by `translator` name based on config mapping.
+2. **Provider adapters (`ITranslatorProvider`)**
+   - Unified contract for every external provider:
+   - `Task<string> TranslateAsync(string translator, string text, CancellationToken ct)`
 
-## Getting Started
+This makes provider swapping/configuration explicit and keeps the API/service layer closed for modification but open for extension.
 
-1. **Verify EF Core Migrations**: The database file `TranslationApi.db` will be instantiated automatically, but verify setup with:
-   ```bash
-   dotnet ef database update
-   ```
-2. **Start the API**:
-   ```bash
-   dotnet run
-   ```
-3. Look at the local URL returned by the console. Access `https://localhost:<port>/swagger` to experiment with endpoints using **Swagger UI**.
+## Configuration-based routing
 
-## How to choose the leetspeak backend
+`appsettings.json`:
 
-Set `LeetSpeakTranslation:Provider` in `appsettings.json` or `user-secrets`:
-
-- `funtranslations` -> calls FunTranslations
-- `rapidapi` -> calls the RapidAPI leet decoder
-
-Example user-secrets command:
-```bash
-dotnet user-secrets set "LeetSpeakTranslation:Provider" "rapidapi"
+```json
+"TranslatorRouting": {
+  "Translators": {
+    "leetspeak": "rapidapi"
+  }
+}
 ```
 
-## How to add a new translator provider
+Meaning:
+- incoming `translator=leetspeak` is routed to provider with key `rapidapi`.
+- change to `funtranslations` to swap backend without changing endpoint/service logic.
 
-To extend the system and add a newly supported translation mode:
-1. Create a class implementing `ITranslatorProvider` interface. Set its `TranslatorName` property (e.g. `minion`).
-2. Add your logic to `TranslateAsync(string text, CancellationToken ct)`. You can define new response models in your new class namespace if talking to a new endpoint.
-3. Open `Program.cs` and register your provider in Dependency Injection using `.AddHttpClient<ITranslatorProvider, MyNewProvider>()`.
-   *The `TranslatorProviderFactory` will automatically extract it and begin supporting requests using your `TranslatorName`*.
+## Currently implemented providers
 
-## Testing
+- `funtranslations` (`FunTranslationsProvider`) - generic FunTranslations endpoint (`/{translator}.json`)
+- `rapidapi` (`RapidApiLeetSpeakDecoderProvider`) - leetspeak decode implementation for fallback scenario
 
-We provide xUnit test suites mocking the external logic without touching external quotas.
+> Requirement note: FunTranslations is implemented as the primary external provider and architecture supports adding more translators/providers with minimal code changes.
 
-Run all tests via:
+## How to add a new translator/provider
+
+1. Implement `ITranslatorProvider` with a unique `ProviderKey`.
+2. Register it in DI (`Program.cs`) as `ITranslatorProvider`.
+3. Add/adjust `TranslatorRouting:Translators` mapping in config.
+4. (Optional) if provider supports only selected translators, validate input in provider.
+
+No controller/service changes are required.
+
+## Run locally
+
+```bash
+dotnet restore
+dotnet run --project AFS-Interview-Task/AFS-Interview-Task.csproj
+```
+
+## Tests
+
 ```bash
 dotnet test
 ```
-*(Tests use an InMemory SQLite database and mocked services Moq for testing complex HTTP behaviours directly without external calls)*.

@@ -1,6 +1,8 @@
+using System.Collections.Generic;
+
 namespace AFS_Interview_Task.Providers;
 
-public class LeetSpeakTranslationOptions
+public class TranslatorRoutingOptions
 {
-    public string Provider { get; set; } = "funtranslations";
+    public Dictionary<string, string> Translators { get; set; } = new();
 }

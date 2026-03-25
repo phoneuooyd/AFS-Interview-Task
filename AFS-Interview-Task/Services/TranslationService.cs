@@ -48,7 +48,7 @@ public class TranslationService : ITranslationService
         var log = new TranslationLog
         {
             Translator = translator,
-            InputText = text,
+            InputText = text.Length > 500 ? text[..500] : text,
             CorrelationId = _correlationIdAccessor.CorrelationId
         };
 
@@ -100,7 +100,7 @@ public class TranslationService : ITranslationService
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
             log.IsSuccess = false;
             log.ErrorMessage = ex.Message;
-            log.ProviderStatusCode = 408;
+            log.ProviderStatusCode = 504;
             await _repository.AddAsync(log, ct);
             throw;
         }

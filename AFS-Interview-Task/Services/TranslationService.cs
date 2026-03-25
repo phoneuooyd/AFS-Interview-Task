@@ -42,7 +42,7 @@ public class TranslationService : ITranslationService
 
         try
         {
-            var translatedText = await provider.TranslateAsync(request.Text, ct);
+            var translatedText = await provider.TranslateAsync(request.Translator, request.Text, ct);
             
             stopwatch.Stop();
             

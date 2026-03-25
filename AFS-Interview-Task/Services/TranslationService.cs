@@ -29,20 +29,34 @@ public class TranslationService : ITranslationService
 
     public async Task<TranslateResponse> TranslateAsync(TranslateRequest request, CancellationToken ct)
     {
+        var provider = _factory.GetProvider(request.Translator);
+        return await TranslateInternalAsync(provider, request.Translator, request.Text, ct);
+    }
+
+    public async Task<TranslateResponse> TranslateAsync(string providerKey, string translator, string text, CancellationToken ct)
+    {
+        var provider = _factory.GetProviderByKey(providerKey);
+        return await TranslateInternalAsync(provider, translator, text, ct);
+    }
+
+    private async Task<TranslateResponse> TranslateInternalAsync(
+        ITranslatorProvider provider,
+        string translator,
+        string text,
+        CancellationToken ct)
+    {
         var log = new TranslationLog
         {
-            Translator = request.Translator,
-            InputText = request.Text,
+            Translator = translator,
+            InputText = text,
             CorrelationId = _correlationIdAccessor.CorrelationId
         };
 
         var stopwatch = Stopwatch.StartNew();
-        ITranslatorProvider? provider = null;
 
         try
         {
-            provider = _factory.GetProvider(request.Translator);
-            var translatedText = await provider.TranslateAsync(request.Text, ct);
+            var translatedText = await provider.TranslateAsync(translator, text, ct);
             
             stopwatch.Stop();
             
@@ -55,7 +69,7 @@ public class TranslationService : ITranslationService
 
             return new TranslateResponse(
                 translatedText,
-                request.Translator,
+                translator,
                 _correlationIdAccessor.CorrelationId,
                 log.DurationMs
             );
@@ -86,7 +100,7 @@ public class TranslationService : ITranslationService
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
             log.IsSuccess = false;
             log.ErrorMessage = ex.Message;
-            log.ProviderStatusCode = 408; // Timeout
+            log.ProviderStatusCode = 408;
             await _repository.AddAsync(log, ct);
             throw;
         }

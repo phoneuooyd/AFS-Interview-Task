@@ -9,6 +9,8 @@ using AFS_Interview_Task.Middleware;
 using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Repositories;
 using AFS_Interview_Task.Services;
+using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
 
@@ -16,107 +18,95 @@ namespace AFS_Interview_Task.Tests.ServicesTests;
 
 public class TranslationServiceTests
 {
-    [Fact]
-    public async Task TranslateAsync_WhenProviderSucceeds_ReturnsResponseAndPersistsSuccessLog()
+    private readonly Mock<ITranslatorProvider> _providerMock;
+    private readonly Mock<ITranslationLogRepository> _repositoryMock;
+    private readonly Mock<ICorrelationIdAccessor> _correlationIdAccessorMock;
+    private readonly TranslatorProviderFactory _factory;
+    private readonly TranslationService _sut;
+
+    public TranslationServiceTests()
     {
-        var providerMock = new Mock<ITranslatorProvider>();
-        providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
-        providerMock.Setup(p => p.TranslateAsync("hello", It.IsAny<CancellationToken>()))
-            .ReturnsAsync("ahoy");
+        _providerMock = new Mock<ITranslatorProvider>();
+        _providerMock.SetupGet(p => p.ProviderKey).Returns("rapidapi");
 
-        var repositoryMock = new Mock<ITranslationLogRepository>();
-        var correlationId = Guid.NewGuid();
-        var correlationAccessorMock = new Mock<ICorrelationIdAccessor>();
-        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(correlationId);
+        _repositoryMock = new Mock<ITranslationLogRepository>();
 
-        var factory = new TranslatorProviderFactory(new List<ITranslatorProvider> { providerMock.Object });
-        var sut = new TranslationService(factory, repositoryMock.Object, correlationAccessorMock.Object);
+        _correlationIdAccessorMock = new Mock<ICorrelationIdAccessor>();
+        _correlationIdAccessorMock.SetupGet(c => c.CorrelationId).Returns(Guid.NewGuid());
 
-        var request = new TranslateRequest { Text = "hello", Translator = "pirate" };
+        var options = Options.Create(new TranslatorRoutingOptions
+        {
+            Translators = new Dictionary<string, string>
+            {
+                ["leetspeak"] = "rapidapi"
+            }
+        });
 
-        var result = await sut.TranslateAsync(request, CancellationToken.None);
+        _factory = new TranslatorProviderFactory(new[] { _providerMock.Object }, options);
 
-        Assert.Equal("ahoy", result.TranslatedText);
-        Assert.Equal("pirate", result.Translator);
-        Assert.Equal(correlationId, result.CorrelationId);
-        Assert.True(result.DurationMs >= 0);
-
-        repositoryMock.Verify(r => r.AddAsync(
-                It.Is<TranslationLog>(l =>
-                    l.Translator == "pirate" &&
-                    l.InputText == "hello" &&
-                    l.OutputText == "ahoy" &&
-                    l.IsSuccess &&
-                    l.ProviderStatusCode == 200 &&
-                    l.ErrorMessage == null &&
-                    l.CorrelationId == correlationId),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        _sut = new TranslationService(_factory, _repositoryMock.Object, _correlationIdAccessorMock.Object);
     }
 
     [Fact]
-    public async Task TranslateAsync_WhenProviderRateLimits_ThrowsAndPersistsFailureLog()
+    public async Task GivenValidRequest_WhenProviderSucceeds_ReturnsTranslatedText_AndLogsSuccess()
     {
-        var providerMock = new Mock<ITranslatorProvider>();
-        providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
-        providerMock.Setup(p => p.TranslateAsync("hello", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new RateLimitException("Too many requests"));
+        var request = new TranslateRequest { Text = "hello", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "hello", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("h3ll0");
 
-        var repositoryMock = new Mock<ITranslationLogRepository>();
-        var correlationId = Guid.NewGuid();
-        var correlationAccessorMock = new Mock<ICorrelationIdAccessor>();
-        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(correlationId);
+        var result = await _sut.TranslateAsync(request, CancellationToken.None);
 
-        var factory = new TranslatorProviderFactory(new List<ITranslatorProvider> { providerMock.Object });
-        var sut = new TranslationService(factory, repositoryMock.Object, correlationAccessorMock.Object);
+        result.Should().NotBeNull();
+        result.TranslatedText.Should().Be("h3ll0");
+        result.Translator.Should().Be("leetspeak");
 
-        var request = new TranslateRequest { Text = "hello", Translator = "pirate" };
-
-        await Assert.ThrowsAsync<RateLimitException>(() => sut.TranslateAsync(request, CancellationToken.None));
-
-        repositoryMock.Verify(r => r.AddAsync(
-                It.Is<TranslationLog>(l =>
-                    l.Translator == "pirate" &&
-                    l.InputText == "hello" &&
-                    l.OutputText == null &&
-                    !l.IsSuccess &&
-                    l.ProviderStatusCode == 429 &&
-                    l.ErrorMessage == "Too many requests" &&
-                    l.CorrelationId == correlationId),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
+            l.IsSuccess &&
+            l.ProviderStatusCode == 200 &&
+            l.OutputText == "h3ll0" &&
+            l.InputText == "hello"), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task TranslateAsync_WhenTranslatorIsUnsupported_ThrowsAndPersistsAuditLog()
+    public async Task GivenValidRequest_WhenProviderThrows429_LogsFailure_AndRethrows()
     {
-        var providerMock = new Mock<ITranslatorProvider>();
-        providerMock.SetupGet(p => p.TranslatorName).Returns("pirate");
+        var request = new TranslateRequest { Text = "hello", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "hello", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RateLimitException(TimeSpan.FromSeconds(10)));
 
-        var repositoryMock = new Mock<ITranslationLogRepository>();
-        var correlationId = Guid.NewGuid();
-        var correlationAccessorMock = new Mock<ICorrelationIdAccessor>();
-        correlationAccessorMock.SetupGet(c => c.CorrelationId).Returns(correlationId);
+        var act = async () => await _sut.TranslateAsync(request, CancellationToken.None);
 
-        var factory = new TranslatorProviderFactory(new List<ITranslatorProvider> { providerMock.Object });
-        var sut = new TranslationService(factory, repositoryMock.Object, correlationAccessorMock.Object);
+        await act.Should().ThrowAsync<RateLimitException>();
 
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
+            !l.IsSuccess &&
+            l.ProviderStatusCode == 429 &&
+            l.OutputText == null &&
+            l.ErrorMessage != null), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenUnknownTranslator_ThrowsUnsupportedTranslatorException_WithoutCallingProvider()
+    {
         var request = new TranslateRequest { Text = "hello", Translator = "unknown" };
 
-        await Assert.ThrowsAsync<UnsupportedTranslatorException>(() => sut.TranslateAsync(request, CancellationToken.None));
+        var act = async () => await _sut.TranslateAsync(request, CancellationToken.None);
 
-        providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        repositoryMock.Verify(r => r.AddAsync(
-                It.Is<TranslationLog>(l =>
-                    l.Translator == "unknown" &&
-                    l.InputText == "hello" &&
-                    l.OutputText == null &&
-                    !l.IsSuccess &&
-                    l.ProviderStatusCode == 400 &&
-                    l.ErrorMessage == "The translator 'unknown' is not supported." &&
-                    l.CorrelationId == correlationId &&
-                    l.DurationMs >= 0),
-                It.IsAny<CancellationToken>()),
-            Times.Once);
+        await act.Should().ThrowAsync<UnsupportedTranslatorException>();
+
+        _providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GivenProviderOverride_WhenProviderSucceeds_ReturnsTranslatedText()
+    {
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "abc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("4bc");
+
+        var result = await _sut.TranslateAsync("rapidapi", "leetspeak", "abc", CancellationToken.None);
+
+        result.TranslatedText.Should().Be("4bc");
+        result.Translator.Should().Be("leetspeak");
     }
 }

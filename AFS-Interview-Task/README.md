@@ -4,22 +4,10 @@ Web API in .NET 8 for text translation with external providers, structured aroun
 
 ## Endpoint contract
 
-### `POST /api/translate` (default provider from config)
+### `POST /api/translate`
 Request body:
 - `text` (string, required, 1-500 chars)
-- `translator` (string, optional)
-
-Behavior depends on active provider profile from configuration:
-- if provider requires translator, missing value is rejected
-- if provider has `DefaultTranslator`, missing value is auto-filled
-
-### `POST /api/translate/funtranslations`
-Alias endpoint for the same request contract (can still use global default provider).
-
-### `POST /api/translate/rapidapi`
-Provider-specific endpoint:
-- `text` (string, required, 1-500 chars)
-- provider key and translator are fixed in code (`rapidapi` + `leetspeak`)
+- `translator` (string, required)
 
 Response:
 - `translatedText` (string)
@@ -56,7 +44,7 @@ Response:
 }
 ```
 
-Swagger request body example for `POST /api/translate` is generated from the active provider profile.
+Swagger request body example for `POST /api/translate` includes both required fields.
 
 ## How to add a new provider
 

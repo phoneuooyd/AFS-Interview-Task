@@ -26,20 +26,11 @@ public class TranslateRequestDefaultExampleOperationFilter : IOperationFilter
             return;
         }
 
-        if (!_options.Providers.TryGetValue(_options.Provider, out var profile))
-        {
-            profile = new ProviderProfileOptions();
-        }
-
         var example = new OpenApiObject
         {
-            ["text"] = new OpenApiString("1337")
+            ["text"] = new OpenApiString("1337"),
+            ["translator"] = new OpenApiString("leetspeak")
         };
-
-        if (profile.RequiresTranslator)
-        {
-            example["translator"] = new OpenApiString(profile.DefaultTranslator ?? "leetspeak");
-        }
 
         foreach (var content in operation.RequestBody.Content.Values)
         {

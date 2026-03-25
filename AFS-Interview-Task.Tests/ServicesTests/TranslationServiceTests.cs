@@ -147,7 +147,7 @@ public class TranslationServiceTests
         _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
             l.IsSuccess &&
             l.InputText.Length == 500 &&
-            l.InputText == tooLongInput[..500]), It.IsAny<CancellationToken>()), Times.Once);
+            l.InputText == tooLongInput.Substring(0, 500)), It.IsAny<CancellationToken>()), Times.Once);
     }
     [Fact]
     public async Task GivenProviderOverride_WhenProviderSucceeds_ReturnsTranslatedText()

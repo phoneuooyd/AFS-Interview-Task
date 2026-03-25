@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AFS_Interview_Task.Domain;
@@ -10,6 +9,7 @@ using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Repositories;
 using AFS_Interview_Task.Services;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -34,17 +34,32 @@ public class TranslationServiceTests
         _correlationIdAccessorMock = new Mock<ICorrelationIdAccessor>();
         _correlationIdAccessorMock.SetupGet(c => c.CorrelationId).Returns(Guid.NewGuid());
 
-        var options = Options.Create(new TranslatorRoutingOptions
+        var options = Options.Create(new LeetSpeakTranslationOptions
         {
-            Translators = new Dictionary<string, string>
-            {
-                ["leetspeak"] = "rapidapi"
-            }
+            Provider = "rapidapi"
         });
 
         _factory = new TranslatorProviderFactory(new[] { _providerMock.Object }, options);
 
-        _sut = new TranslationService(_factory, _repositoryMock.Object, _correlationIdAccessorMock.Object);
+        var logger = new Mock<ILogger<TranslationService>>();
+
+        _sut = new TranslationService(
+            _factory,
+            _repositoryMock.Object,
+            _correlationIdAccessorMock.Object,
+            logger.Object);
+    }
+
+    [Fact]
+    public async Task GivenRequestWithoutTranslator_WhenDefaultProviderSucceeds_ReturnsTranslatedText()
+    {
+        var request = new TranslateRequest { Text = "1337", Translator = null };
+        _providerMock.Setup(p => p.TranslateAsync(string.Empty, "1337", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("leet");
+
+        var result = await _sut.TranslateAsync(request, CancellationToken.None);
+
+        result.TranslatedText.Should().Be("leet");
     }
 
     [Fact]
@@ -83,19 +98,6 @@ public class TranslationServiceTests
             l.ProviderStatusCode == 429 &&
             l.OutputText == null &&
             l.ErrorMessage != null), It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Fact]
-    public async Task GivenUnknownTranslator_ThrowsUnsupportedTranslatorException_WithoutCallingProvider()
-    {
-        var request = new TranslateRequest { Text = "hello", Translator = "unknown" };
-
-        var act = async () => await _sut.TranslateAsync(request, CancellationToken.None);
-
-        await act.Should().ThrowAsync<UnsupportedTranslatorException>();
-
-        _providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -4,15 +4,22 @@ Web API in .NET 8 for text translation with external providers, structured aroun
 
 ## Endpoint contract
 
-### `POST /api/translate` or `POST /api/translate/funtranslations`
-Request body (FunTranslations flow):
+### `POST /api/translate` (default provider from config)
+Request body:
 - `text` (string, required, 1-500 chars)
-- `translator` (string, required), e.g. `"yoda"` / `"pirate"` / `"leetspeak"` depending on FunTranslations translator.
+- `translator` (string, optional)
+
+Behavior depends on active provider profile from configuration:
+- if provider requires translator, missing value is rejected
+- if provider has `DefaultTranslator`, missing value is auto-filled
+
+### `POST /api/translate/funtranslations`
+Alias endpoint for the same request contract (can still use global default provider).
 
 ### `POST /api/translate/rapidapi`
-Request body (RapidAPI flow):
+Provider-specific endpoint:
 - `text` (string, required, 1-500 chars)
-- `translator` is intentionally not present in the body. It is fixed to `leetspeak` in code for this provider endpoint.
+- provider key and translator are fixed in code (`rapidapi` + `leetspeak`)
 
 Response:
 - `translatedText` (string)
@@ -20,53 +27,45 @@ Response:
 - `requestId` (GUID)
 - `durationMs` (int)
 
-## Provider architecture (SOLID-friendly)
+## Provider architecture (low-boilerplate extension)
 
-The provider layer is split into two responsibilities:
+1. **Provider selection (`TranslatorProviderFactory`)**
+   - resolves provider by name
+   - falls back to `LeetSpeakTranslation:Provider`
+2. **Shared provider base (`TranslatorProviderBase`)**
+   - common translator resolving
+   - common validation flow
+   - configurable rules (`RequiresTranslator`, `DefaultTranslator`) from appsettings
+3. **Provider implementations (`ITranslatorProvider`)**
+   - only implement provider-specific translation details in `ExecuteCoreAsync`
 
-1. **Translator routing (`TranslatorProviderFactory`)**
-   - Chooses provider implementation by `translator` name based on config mapping.
-2. **Provider adapters (`ITranslatorProvider`)**
-   - Unified contract for every external provider:
-   - `Task<string> TranslateAsync(string translator, string text, CancellationToken ct)`
-
-This makes provider swapping/configuration explicit and keeps the API/service layer closed for modification but open for extension.
-
-Additionally, `TranslationService` supports overloaded translation execution:
-- by translator mapping (`TranslateAsync(TranslateRequest, ...)`)
-- by explicit provider key override (`TranslateAsync(providerKey, translator, text, ...)`)
-
-## Configuration-based routing
-
-`appsettings.json`:
+## Configuration
 
 ```json
-"TranslatorRouting": {
-  "Translators": {
-    "leetspeak": "rapidapi"
+"LeetSpeakTranslation": {
+  "Provider": "rapidapi",
+  "Providers": {
+    "rapidapi": {
+      "RequiresTranslator": false,
+      "DefaultTranslator": "leetspeak"
+    },
+    "funtranslations": {
+      "RequiresTranslator": true
+    }
   }
 }
 ```
 
-Meaning:
-- incoming `translator=leetspeak` is routed to provider with key `rapidapi`.
-- change to `funtranslations` to swap backend without changing endpoint/service logic.
+Swagger request body example for `POST /api/translate` is generated from the active provider profile.
 
-## Currently implemented providers
+## How to add a new provider
 
-- `funtranslations` (`FunTranslationsProvider`) - generic FunTranslations endpoint (`/{translator}.json`)
-- `rapidapi` (`RapidApiLeetSpeakDecoderProvider`) - leetspeak decode implementation for fallback scenario
+1. Add provider profile in `LeetSpeakTranslation:Providers` in appsettings.
+2. Create class inheriting `TranslatorProviderBase` and implement provider-specific translation logic.
+3. Override base methods only if behavior differs (`ValidateTranslator`, `NormalizeText`, etc.).
+4. Register provider in DI as `ITranslatorProvider` (+ `HttpClient` if needed).
 
-> Requirement note: FunTranslations is implemented as the primary external provider and architecture supports adding more translators/providers with minimal code changes.
-
-## How to add a new translator/provider
-
-1. Implement `ITranslatorProvider` with a unique `ProviderKey`.
-2. Register it in DI (`Program.cs`) as `ITranslatorProvider`.
-3. Add/adjust `TranslatorRouting:Translators` mapping in config.
-4. (Optional) if provider supports only selected translators, validate input in provider.
-
-No controller/service changes are required.
+No changes are required in `TranslationService`.
 
 ## Run locally
 
@@ -78,5 +77,5 @@ dotnet run --project AFS-Interview-Task/AFS-Interview-Task.csproj
 ## Tests
 
 ```bash
-dotnet test ../AFS-Interview-Task.sln
+dotnet test AFS-Interview-Task.sln
 ```

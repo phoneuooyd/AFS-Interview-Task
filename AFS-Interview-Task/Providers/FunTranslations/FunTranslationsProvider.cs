@@ -7,21 +7,23 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using AFS_Interview_Task.Exceptions;
+using Microsoft.Extensions.Options;
 
 namespace AFS_Interview_Task.Providers.FunTranslations;
 
-public class FunTranslationsProvider : ITranslatorProvider
+public class FunTranslationsProvider : TranslatorProviderBase
 {
     private readonly HttpClient _httpClient;
 
-    public string ProviderKey => "funtranslations";
+    public override string ProviderKey => "funtranslations";
 
-    public FunTranslationsProvider(HttpClient httpClient)
+    public FunTranslationsProvider(HttpClient httpClient, IOptions<LeetSpeakTranslationOptions> options)
+        : base(options, "funtranslations")
     {
         _httpClient = httpClient;
     }
 
-    public async Task<string> TranslateAsync(string translator, string text, CancellationToken ct)
+    protected override async Task<string> ExecuteCoreAsync(string translator, string text, CancellationToken ct)
     {
         try
         {

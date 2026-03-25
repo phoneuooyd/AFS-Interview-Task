@@ -4,6 +4,7 @@ using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Providers.FunTranslations;
 using AFS_Interview_Task.Repositories;
 using AFS_Interview_Task.Services;
+using AFS_Interview_Task.Swagger;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +16,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.OperationFilter<TranslateRequestDefaultExampleOperationFilter>();
+});
 
 // Database setup
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -28,8 +32,8 @@ builder.Services.AddProblemDetails();
 // Middleware & Accessories
 builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
-// Translation routing configuration - map request translator => concrete provider key
-builder.Services.Configure<TranslatorRoutingOptions>(builder.Configuration.GetSection("TranslatorRouting"));
+// Translation configuration
+builder.Services.Configure<LeetSpeakTranslationOptions>(builder.Configuration.GetSection("LeetSpeakTranslation"));
 builder.Services.Configure<RapidApiLeetDecoderOptions>(builder.Configuration.GetSection("RapidApiLeetDecoder"));
 
 // External providers

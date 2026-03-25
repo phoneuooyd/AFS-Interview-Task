@@ -5,7 +5,7 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AFS-Interview-Task", "AFS-Interview-Task.csproj", "{5BC2DFFF-078D-9083-3213-DF43AFAEF979}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AFS-Interview-Task.Tests", "AFS-Interview-Task.Tests\AFS-Interview-Task.Tests.csproj", "{60F8CDE0-4C75-4469-8C41-E4546CD65E21}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AFS-Interview-Task.Tests", "..\AFS-Interview-Task.Tests\AFS-Interview-Task.Tests.csproj", "{60F8CDE0-4C75-4469-8C41-E4546CD65E21}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

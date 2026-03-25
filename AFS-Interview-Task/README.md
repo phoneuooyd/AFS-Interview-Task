@@ -78,5 +78,5 @@ dotnet run --project AFS-Interview-Task/AFS-Interview-Task.csproj
 ## Tests
 
 ```bash
-dotnet test
+dotnet test ../AFS-Interview-Task.sln
 ```

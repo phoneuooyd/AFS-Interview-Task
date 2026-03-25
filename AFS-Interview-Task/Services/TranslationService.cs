@@ -74,6 +74,16 @@ public class TranslationService : ITranslationService
                 log.DurationMs
             );
         }
+        catch (UnsupportedTranslatorException ex)
+        {
+            stopwatch.Stop();
+            log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
+            log.IsSuccess = false;
+            log.ErrorMessage = ex.Message;
+            log.ProviderStatusCode = 400;
+            await _repository.AddAsync(log, ct);
+            throw;
+        }
         catch (RateLimitException ex)
         {
             stopwatch.Stop();
@@ -90,7 +100,7 @@ public class TranslationService : ITranslationService
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
             log.IsSuccess = false;
             log.ErrorMessage = ex.Message;
-            log.ProviderStatusCode = 408; // Timeout
+            log.ProviderStatusCode = 408;
             await _repository.AddAsync(log, ct);
             throw;
         }

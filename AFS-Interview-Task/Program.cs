@@ -51,8 +51,8 @@ builder.Services.AddHttpClient<RapidApiLeetSpeakDecoderProvider>(client =>
 });
 
 // Providers factory
-builder.Services.AddScoped<ITranslatorProvider, FunTranslationsProvider>();
-builder.Services.AddScoped<ITranslatorProvider, RapidApiLeetSpeakDecoderProvider>();
+builder.Services.AddScoped<ITranslatorProvider>(sp => sp.GetRequiredService<FunTranslationsProvider>());
+builder.Services.AddScoped<ITranslatorProvider>(sp => sp.GetRequiredService<RapidApiLeetSpeakDecoderProvider>());
 builder.Services.AddScoped<TranslatorProviderFactory>();
 
 // Scoped services & repos

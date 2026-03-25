@@ -42,5 +42,20 @@ namespace AFS_Interview_Task.Tests.ControllersTests
             var returned = Assert.IsType<PagedResult<TranslationLogDto>>(result.Value);
             Assert.True(returned.PageSize <= 100);
         }
+
+        [Fact]
+        public async Task TranslateRapidApi_UsesRapidApiOverloadWithoutTranslatorInBody()
+        {
+            var mockService = new Mock<ITranslationService>();
+            mockService.Setup(s => s.TranslateAsync("rapidapi", "leetspeak", "hello", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new TranslateResponse("h3ll0", "leetspeak", Guid.NewGuid(), 10));
+
+            var controller = new TranslationController(mockService.Object);
+
+            var result = await controller.TranslateRapidApi(new RapidApiTranslateRequest { Text = "hello" }, CancellationToken.None);
+
+            Assert.IsType<OkObjectResult>(result);
+            mockService.Verify(s => s.TranslateAsync("rapidapi", "leetspeak", "hello", It.IsAny<CancellationToken>()), Times.Once);
+        }
     }
 }

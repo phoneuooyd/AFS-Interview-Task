@@ -40,6 +40,19 @@ public class TranslatorProviderFactory
             $"Provider '{providerKey}' configured for translator '{translator}' is not registered in DI.");
     }
 
+    public ITranslatorProvider GetProviderByKey(string providerKey)
+    {
+        var normalizedProviderKey = Normalize(providerKey);
+
+        if (_providersByKey.TryGetValue(normalizedProviderKey, out var provider))
+        {
+            return provider;
+        }
+
+        throw new InvalidOperationException(
+            $"Provider '{providerKey}' is not registered in DI.");
+    }
+
     private static string Normalize(string value)
         => value.Trim().Replace("-", string.Empty).Replace("_", string.Empty).ToLowerInvariant();
 }

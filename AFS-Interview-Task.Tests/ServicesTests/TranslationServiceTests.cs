@@ -97,4 +97,16 @@ public class TranslationServiceTests
         _providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         _repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    [Fact]
+    public async Task GivenProviderOverride_WhenProviderSucceeds_ReturnsTranslatedText()
+    {
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "abc", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("4bc");
+
+        var result = await _sut.TranslateAsync("rapidapi", "leetspeak", "abc", CancellationToken.None);
+
+        result.TranslatedText.Should().Be("4bc");
+        result.Translator.Should().Be("leetspeak");
+    }
 }

@@ -9,11 +9,15 @@ using Microsoft.Extensions.Options;
 
 namespace AFS_Interview_Task.Providers;
 
-public class RapidApiLeetSpeakDecoderProvider
+public class RapidApiLeetSpeakDecoderProvider : ITranslatorProvider
 {
+    private const string SupportedTranslator = "leetspeak";
+
     private readonly HttpClient _httpClient;
     private readonly RapidApiLeetDecoderOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
+
+    public string ProviderKey => "rapidapi";
 
     public RapidApiLeetSpeakDecoderProvider(HttpClient httpClient, IOptions<RapidApiLeetDecoderOptions> options)
     {
@@ -27,15 +31,27 @@ public class RapidApiLeetSpeakDecoderProvider
         }
     }
 
-    public async Task<string> TranslateAsync(string text, CancellationToken ct)
+    public Task<string> TranslateAsync(string text, CancellationToken ct)
+        => SendDecodeRequestAsync(text, ct);
+
+    public Task<string> TranslateAsync(string translator, string text, CancellationToken ct)
+    {
+        if (!string.Equals(translator, SupportedTranslator, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnsupportedTranslatorException(translator);
+        }
+
+        return SendDecodeRequestAsync(text, ct);
+    }
+
+    private async Task<string> SendDecodeRequestAsync(string text, CancellationToken ct)
     {
         var request = new HttpRequestMessage(HttpMethod.Post, _options.EndpointPath)
         {
             Content = new StringContent(
-                JsonSerializer.Serialize(new { text, mode = "decode" }),
+                JsonSerializer.Serialize(new { text, mode = "decode" }, _jsonOptions),
                 Encoding.UTF8,
-                "application/json"
-)
+                "application/json")
         };
 
         request.Headers.Add("x-rapidapi-host", _options.Host);

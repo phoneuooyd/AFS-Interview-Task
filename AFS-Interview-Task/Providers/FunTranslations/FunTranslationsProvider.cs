@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -13,25 +14,28 @@ public class FunTranslationsProvider : ITranslatorProvider
 {
     private readonly HttpClient _httpClient;
 
-    // Use a specific translator type like "leetspeak" for the endpoint
-    // In FunTranslations, the endpoint is usually /{translator}.json
-    public string TranslatorName => "leetspeak"; 
+    public string ProviderKey => "funtranslations";
 
     public FunTranslationsProvider(HttpClient httpClient)
     {
         _httpClient = httpClient;
     }
 
-    public async Task<string> TranslateAsync(string text, CancellationToken ct)
+    public Task<string> TranslateAsync(string text, CancellationToken ct)
+    {
+        throw new InvalidOperationException("FunTranslations requires translator name in request body.");
+    }
+
+    public async Task<string> TranslateAsync(string translator, string text, CancellationToken ct)
     {
         try
         {
             var content = new FormUrlEncodedContent(new[]
             {
-                new System.Collections.Generic.KeyValuePair<string, string>("text", text)
+                new KeyValuePair<string, string>("text", text)
             });
 
-            var response = await _httpClient.PostAsync($"{TranslatorName}.json", content, ct);
+            var response = await _httpClient.PostAsync($"{translator}.json", content, ct);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {

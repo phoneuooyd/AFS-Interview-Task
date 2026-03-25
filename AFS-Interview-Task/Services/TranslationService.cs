@@ -8,6 +8,7 @@ using AFS_Interview_Task.Exceptions;
 using AFS_Interview_Task.Middleware;
 using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Repositories;
+using Microsoft.Extensions.Options;
 
 namespace AFS_Interview_Task.Services;
 
@@ -16,24 +17,34 @@ public class TranslationService : ITranslationService
     private readonly TranslatorProviderFactory _factory;
     private readonly ITranslationLogRepository _repository;
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
+    private readonly TranslationExecutionOptions _executionOptions;
 
     public TranslationService(
-        TranslatorProviderFactory factory, 
+        TranslatorProviderFactory factory,
         ITranslationLogRepository repository,
-        ICorrelationIdAccessor correlationIdAccessor)
+        ICorrelationIdAccessor correlationIdAccessor,
+        IOptions<TranslationExecutionOptions> executionOptions)
     {
         _factory = factory;
         _repository = repository;
         _correlationIdAccessor = correlationIdAccessor;
+        _executionOptions = executionOptions.Value;
     }
 
     public async Task<TranslateResponse> TranslateAsync(TranslateRequest request, CancellationToken ct)
     {
-        var provider = _factory.GetProvider(request.Translator);
-        
+        var hasTranslator = !string.IsNullOrWhiteSpace(request.Translator);
+        var provider = hasTranslator
+            ? _factory.GetProvider(request.Translator!)
+            : _factory.GetProviderByKey(_executionOptions.DefaultProvider);
+
+        var effectiveTranslator = hasTranslator
+            ? request.Translator!
+            : provider.ProviderKey;
+
         var log = new TranslationLog
         {
-            Translator = request.Translator,
+            Translator = effectiveTranslator,
             InputText = request.Text,
             CorrelationId = _correlationIdAccessor.CorrelationId
         };
@@ -42,10 +53,12 @@ public class TranslationService : ITranslationService
 
         try
         {
-            var translatedText = await provider.TranslateAsync(request.Text, ct);
-            
+            var translatedText = hasTranslator
+                ? await provider.TranslateAsync(effectiveTranslator, request.Text, ct)
+                : await provider.TranslateAsync(request.Text, ct);
+
             stopwatch.Stop();
-            
+
             log.OutputText = translatedText;
             log.IsSuccess = true;
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
@@ -55,7 +68,7 @@ public class TranslationService : ITranslationService
 
             return new TranslateResponse(
                 translatedText,
-                request.Translator,
+                effectiveTranslator,
                 _correlationIdAccessor.CorrelationId,
                 log.DurationMs
             );
@@ -76,7 +89,7 @@ public class TranslationService : ITranslationService
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
             log.IsSuccess = false;
             log.ErrorMessage = ex.Message;
-            log.ProviderStatusCode = 408; // Timeout
+            log.ProviderStatusCode = 408;
             await _repository.AddAsync(log, ct);
             throw;
         }

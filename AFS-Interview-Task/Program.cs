@@ -28,8 +28,9 @@ builder.Services.AddProblemDetails();
 // Middleware & Accessories
 builder.Services.AddScoped<ICorrelationIdAccessor, CorrelationIdAccessor>();
 
-// Translation routing configuration - choose the leetspeak backend in appsettings or user-secrets
-builder.Services.Configure<LeetSpeakTranslationOptions>(builder.Configuration.GetSection("LeetSpeakTranslation"));
+// Translation routing configuration - map request translator => concrete provider key
+builder.Services.Configure<TranslatorRoutingOptions>(builder.Configuration.GetSection("TranslatorRouting"));
+builder.Services.Configure<TranslationExecutionOptions>(builder.Configuration.GetSection("TranslationExecution"));
 builder.Services.Configure<RapidApiLeetDecoderOptions>(builder.Configuration.GetSection("RapidApiLeetDecoder"));
 
 // External providers
@@ -47,7 +48,8 @@ builder.Services.AddHttpClient<RapidApiLeetSpeakDecoderProvider>(client =>
 });
 
 // Providers factory
-builder.Services.AddScoped<ITranslatorProvider, LeetSpeakFallbackProvider>();
+builder.Services.AddScoped<ITranslatorProvider, FunTranslationsProvider>();
+builder.Services.AddScoped<ITranslatorProvider, RapidApiLeetSpeakDecoderProvider>();
 builder.Services.AddScoped<TranslatorProviderFactory>();
 
 // Scoped services & repos

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AFS_Interview_Task.Domain;
@@ -34,17 +33,29 @@ public class TranslationServiceTests
         _correlationIdAccessorMock = new Mock<ICorrelationIdAccessor>();
         _correlationIdAccessorMock.SetupGet(c => c.CorrelationId).Returns(Guid.NewGuid());
 
-        var options = Options.Create(new TranslatorRoutingOptions
+        var options = Options.Create(new LeetSpeakTranslationOptions
         {
-            Translators = new Dictionary<string, string>
-            {
-                ["leetspeak"] = "rapidapi"
-            }
+            Provider = "rapidapi"
         });
 
         _factory = new TranslatorProviderFactory(new[] { _providerMock.Object }, options);
 
-        _sut = new TranslationService(_factory, _repositoryMock.Object, _correlationIdAccessorMock.Object);
+        _sut = new TranslationService(
+            _factory,
+            _repositoryMock.Object,
+            _correlationIdAccessorMock.Object);
+    }
+
+    [Fact]
+    public async Task GivenValidRequest_WhenProviderSucceeds_ReturnsTranslatedText()
+    {
+        var request = new TranslateRequest { Text = "1337", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "1337", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("leet");
+
+        var result = await _sut.TranslateAsync(request, CancellationToken.None);
+
+        result.TranslatedText.Should().Be("leet");
     }
 
     [Fact]
@@ -85,19 +96,59 @@ public class TranslationServiceTests
             l.ErrorMessage != null), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+
     [Fact]
-    public async Task GivenUnknownTranslator_ThrowsUnsupportedTranslatorException_WithoutCallingProvider()
+    public async Task GivenValidRequest_WhenProviderTimeouts_LogsFailure_AndRethrows()
     {
-        var request = new TranslateRequest { Text = "hello", Translator = "unknown" };
+        var request = new TranslateRequest { Text = "hello", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "hello", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TranslationTimeoutException());
 
         var act = async () => await _sut.TranslateAsync(request, CancellationToken.None);
 
-        await act.Should().ThrowAsync<UnsupportedTranslatorException>();
+        await act.Should().ThrowAsync<TranslationTimeoutException>();
 
-        _providerMock.Verify(p => p.TranslateAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        _repositoryMock.Verify(r => r.AddAsync(It.IsAny<TranslationLog>(), It.IsAny<CancellationToken>()), Times.Never);
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
+            !l.IsSuccess &&
+            l.ProviderStatusCode == 504 &&
+            l.OutputText == null &&
+            l.ErrorMessage != null), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task GivenValidRequest_WhenProviderReturnsNon200_LogsFailure_AndRethrows()
+    {
+        var request = new TranslateRequest { Text = "hello", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "hello", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TranslationProviderException(502, "Bad Gateway from provider"));
+
+        var act = async () => await _sut.TranslateAsync(request, CancellationToken.None);
+
+        await act.Should().ThrowAsync<TranslationProviderException>();
+
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
+            !l.IsSuccess &&
+            l.ProviderStatusCode == 502 &&
+            l.OutputText == null &&
+            l.ErrorMessage == "Bad Gateway from provider"), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GivenTooLongInput_WhenProviderSucceeds_LogsTrimmedInput()
+    {
+        var tooLongInput = new string('a', 600);
+        var request = new TranslateRequest { Text = tooLongInput, Translator = "leetspeak" };
+
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", tooLongInput, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("translated");
+
+        await _sut.TranslateAsync(request, CancellationToken.None);
+
+        _repositoryMock.Verify(r => r.AddAsync(It.Is<TranslationLog>(l =>
+            l.IsSuccess &&
+            l.InputText.Length == 500 &&
+            l.InputText == tooLongInput.Substring(0, 500)), It.IsAny<CancellationToken>()), Times.Once);
+    }
     [Fact]
     public async Task GivenProviderOverride_WhenProviderSucceeds_ReturnsTranslatedText()
     {

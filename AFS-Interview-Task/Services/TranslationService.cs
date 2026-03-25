@@ -18,7 +18,7 @@ public class TranslationService : ITranslationService
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
 
     public TranslationService(
-        TranslatorProviderFactory factory, 
+        TranslatorProviderFactory factory,
         ITranslationLogRepository repository,
         ICorrelationIdAccessor correlationIdAccessor)
     {
@@ -29,7 +29,7 @@ public class TranslationService : ITranslationService
 
     public async Task<TranslateResponse> TranslateAsync(TranslateRequest request, CancellationToken ct)
     {
-        var provider = _factory.GetProvider(request.Translator);
+        var provider = _factory.GetProvider(null);
         return await TranslateInternalAsync(provider, request.Translator, request.Text, ct);
     }
 
@@ -48,7 +48,7 @@ public class TranslationService : ITranslationService
         var log = new TranslationLog
         {
             Translator = translator,
-            InputText = text,
+            InputText = text.Length > 500 ? text[..500] : text,
             CorrelationId = _correlationIdAccessor.CorrelationId
         };
 
@@ -57,9 +57,9 @@ public class TranslationService : ITranslationService
         try
         {
             var translatedText = await provider.TranslateAsync(translator, text, ct);
-            
+
             stopwatch.Stop();
-            
+
             log.OutputText = translatedText;
             log.IsSuccess = true;
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
@@ -100,7 +100,7 @@ public class TranslationService : ITranslationService
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;
             log.IsSuccess = false;
             log.ErrorMessage = ex.Message;
-            log.ProviderStatusCode = 408;
+            log.ProviderStatusCode = 504;
             await _repository.AddAsync(log, ct);
             throw;
         }

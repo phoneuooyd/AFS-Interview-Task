@@ -9,35 +9,27 @@ namespace AFS_Interview_Task.Providers;
 public class TranslatorProviderFactory
 {
     private readonly IReadOnlyDictionary<string, ITranslatorProvider> _providersByKey;
-    private readonly IReadOnlyDictionary<string, string> _translatorRoutes;
 
-    public TranslatorProviderFactory(IEnumerable<ITranslatorProvider> providers, IOptions<TranslatorRoutingOptions> options)
+    public string DefaultProviderName { get; }
+
+    public TranslatorProviderFactory(IEnumerable<ITranslatorProvider> providers, IOptions<LeetSpeakTranslationOptions> options)
     {
         _providersByKey = providers.ToDictionary(p => Normalize(p.ProviderKey), StringComparer.OrdinalIgnoreCase);
-
-        _translatorRoutes = options.Value.Translators
-            .ToDictionary(
-                route => Normalize(route.Key),
-                route => Normalize(route.Value),
-                StringComparer.OrdinalIgnoreCase);
+        DefaultProviderName = Normalize(options.Value.Provider);
     }
 
-    public ITranslatorProvider GetProvider(string translator)
+    public ITranslatorProvider GetProvider(string? name)
     {
-        var normalizedTranslator = Normalize(translator);
+        var requestedProviderName = string.IsNullOrWhiteSpace(name)
+            ? DefaultProviderName
+            : Normalize(name);
 
-        if (!_translatorRoutes.TryGetValue(normalizedTranslator, out var providerKey))
-        {
-            throw new UnsupportedTranslatorException(translator);
-        }
-
-        if (_providersByKey.TryGetValue(providerKey, out var provider))
+        if (_providersByKey.TryGetValue(requestedProviderName, out var provider))
         {
             return provider;
         }
 
-        throw new InvalidOperationException(
-            $"Provider '{providerKey}' configured for translator '{translator}' is not registered in DI.");
+        throw new UnsupportedTranslatorException(name ?? requestedProviderName);
     }
 
     public ITranslatorProvider GetProviderByKey(string providerKey)
@@ -51,6 +43,16 @@ public class TranslatorProviderFactory
 
         throw new InvalidOperationException(
             $"Provider '{providerKey}' is not registered in DI.");
+    }
+
+    public bool IsProviderRegistered(string? providerKey)
+    {
+        if (string.IsNullOrWhiteSpace(providerKey))
+        {
+            return false;
+        }
+
+        return _providersByKey.ContainsKey(Normalize(providerKey));
     }
 
     private static string Normalize(string value)

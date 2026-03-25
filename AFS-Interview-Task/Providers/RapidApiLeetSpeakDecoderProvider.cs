@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace AFS_Interview_Task.Providers;
 
-public class RapidApiLeetSpeakDecoderProvider : ITranslatorProvider
+public class RapidApiLeetSpeakDecoderProvider : TranslatorProviderBase
 {
     private const string SupportedTranslator = "leetspeak";
 
@@ -17,9 +17,13 @@ public class RapidApiLeetSpeakDecoderProvider : ITranslatorProvider
     private readonly RapidApiLeetDecoderOptions _options;
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public string ProviderKey => "rapidapi";
+    public override string ProviderKey => "rapidapi";
 
-    public RapidApiLeetSpeakDecoderProvider(HttpClient httpClient, IOptions<RapidApiLeetDecoderOptions> options)
+    public RapidApiLeetSpeakDecoderProvider(
+        HttpClient httpClient,
+        IOptions<RapidApiLeetDecoderOptions> options,
+        IOptions<LeetSpeakTranslationOptions> translationOptions)
+        : base(translationOptions, "rapidapi")
     {
         _httpClient = httpClient;
         _options = options.Value;
@@ -31,13 +35,16 @@ public class RapidApiLeetSpeakDecoderProvider : ITranslatorProvider
         }
     }
 
-    public async Task<string> TranslateAsync(string translator, string text, CancellationToken ct)
+    protected override void ValidateTranslator(string translator)
     {
         if (!string.Equals(translator, SupportedTranslator, StringComparison.OrdinalIgnoreCase))
         {
             throw new UnsupportedTranslatorException(translator);
         }
+    }
 
+    protected override async Task<string> ExecuteCoreAsync(string translator, string text, CancellationToken ct)
+    {
         var request = new HttpRequestMessage(HttpMethod.Post, _options.EndpointPath)
         {
             Content = new StringContent(

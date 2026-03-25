@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace AFS_Interview_Task.DTOs;
@@ -10,5 +9,6 @@ public class TranslateRequest
     public string Text { get; set; } = string.Empty;
 
     [Required]
+    [StringLength(100, MinimumLength = 1)]
     public string Translator { get; set; } = string.Empty;
 }

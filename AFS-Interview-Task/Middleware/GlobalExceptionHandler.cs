@@ -28,7 +28,7 @@ public class GlobalExceptionHandler : IExceptionHandler
             problemDetails.Title = "Rate Limit Exceeded";
             problemDetails.Status = StatusCodes.Status429TooManyRequests;
             problemDetails.Detail = rateLimitEx.Message;
-            httpContext.Response.Headers.RetryAfter = rateLimitEx.RetryAfter.TotalSeconds.ToString();
+            httpContext.Response.Headers["Retry-After"] = ((int)rateLimitEx.RetryAfter.TotalSeconds).ToString();
         }
         else if (exception is TranslationTimeoutException timeoutEx)
         {

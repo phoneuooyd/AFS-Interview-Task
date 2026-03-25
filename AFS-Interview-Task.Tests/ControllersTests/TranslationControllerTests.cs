@@ -44,18 +44,20 @@ namespace AFS_Interview_Task.Tests.ControllersTests
         }
 
         [Fact]
-        public async Task TranslateRapidApi_UsesRapidApiOverloadWithoutTranslatorInBody()
+        public async Task GetLogs_ReturnsBadRequest_WhenFromUtcIsLaterThanToUtc()
         {
             var mockService = new Mock<ITranslationService>();
-            mockService.Setup(s => s.TranslateAsync("rapidapi", "leetspeak", "hello", It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new TranslateResponse("h3ll0", "leetspeak", Guid.NewGuid(), 10));
-
             var controller = new TranslationController(mockService.Object);
 
-            var result = await controller.TranslateRapidApi(new RapidApiTranslateRequest { Text = "hello" }, CancellationToken.None);
+            var query = new TranslationLogQuery(
+                Page: 1,
+                PageSize: 10,
+                FromUtc: DateTime.UtcNow,
+                ToUtc: DateTime.UtcNow.AddMinutes(-1));
 
-            Assert.IsType<OkObjectResult>(result);
-            mockService.Verify(s => s.TranslateAsync("rapidapi", "leetspeak", "hello", It.IsAny<CancellationToken>()), Times.Once);
+            var result = await controller.GetLogs(query, CancellationToken.None);
+
+            Assert.IsType<BadRequestObjectResult>(result);
         }
     }
 }

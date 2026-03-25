@@ -9,7 +9,6 @@ using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Repositories;
 using AFS_Interview_Task.Services;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -41,20 +40,17 @@ public class TranslationServiceTests
 
         _factory = new TranslatorProviderFactory(new[] { _providerMock.Object }, options);
 
-        var logger = new Mock<ILogger<TranslationService>>();
-
         _sut = new TranslationService(
             _factory,
             _repositoryMock.Object,
-            _correlationIdAccessorMock.Object,
-            logger.Object);
+            _correlationIdAccessorMock.Object);
     }
 
     [Fact]
-    public async Task GivenRequestWithoutTranslator_WhenDefaultProviderSucceeds_ReturnsTranslatedText()
+    public async Task GivenValidRequest_WhenProviderSucceeds_ReturnsTranslatedText()
     {
-        var request = new TranslateRequest { Text = "1337", Translator = null };
-        _providerMock.Setup(p => p.TranslateAsync(string.Empty, "1337", It.IsAny<CancellationToken>()))
+        var request = new TranslateRequest { Text = "1337", Translator = "leetspeak" };
+        _providerMock.Setup(p => p.TranslateAsync("leetspeak", "1337", It.IsAny<CancellationToken>()))
             .ReturnsAsync("leet");
 
         var result = await _sut.TranslateAsync(request, CancellationToken.None);

@@ -8,5 +8,7 @@ public class TranslateRequest
     [StringLength(500, MinimumLength = 1)]
     public string Text { get; set; } = string.Empty;
 
-    public string? Translator { get; set; }
+    [Required]
+    [StringLength(100, MinimumLength = 1)]
+    public string Translator { get; set; } = string.Empty;
 }

@@ -18,7 +18,6 @@ public class TranslationController : ControllerBase
     }
 
     [HttpPost("translate")]
-    [HttpPost("translate/funtranslations")]
     public async Task<IActionResult> Translate([FromBody] TranslateRequest request, CancellationToken ct)
     {
         if (!ModelState.IsValid)
@@ -27,20 +26,6 @@ public class TranslationController : ControllerBase
         }
 
         var result = await _translationService.TranslateAsync(request, ct);
-        return Ok(result);
-    }
-
-    [HttpPost("translate/rapidapi")]
-    public async Task<IActionResult> TranslateRapidApi([FromBody] RapidApiTranslateRequest request, CancellationToken ct)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        const string providerKey = "rapidapi";
-        const string translator = "leetspeak";
-        var result = await _translationService.TranslateAsync(providerKey, translator, request.Text, ct);
         return Ok(result);
     }
 

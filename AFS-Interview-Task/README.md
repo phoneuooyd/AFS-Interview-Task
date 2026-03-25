@@ -4,10 +4,15 @@ Web API in .NET 8 for text translation with external providers, structured aroun
 
 ## Endpoint contract
 
-### `POST /api/translate`
-Request body:
+### `POST /api/translate` or `POST /api/translate/funtranslations`
+Request body (FunTranslations flow):
 - `text` (string, required, 1-500 chars)
-- `translator` (string, required), e.g. `"leetspeak"`
+- `translator` (string, required), e.g. `"yoda"` / `"pirate"` / `"leetspeak"` depending on FunTranslations translator.
+
+### `POST /api/translate/rapidapi`
+Request body (RapidAPI flow):
+- `text` (string, required, 1-500 chars)
+- `translator` is intentionally not present in the body. It is fixed to `leetspeak` in code for this provider endpoint.
 
 Response:
 - `translatedText` (string)
@@ -26,6 +31,10 @@ The provider layer is split into two responsibilities:
    - `Task<string> TranslateAsync(string translator, string text, CancellationToken ct)`
 
 This makes provider swapping/configuration explicit and keeps the API/service layer closed for modification but open for extension.
+
+Additionally, `TranslationService` supports overloaded translation execution:
+- by translator mapping (`TranslateAsync(TranslateRequest, ...)`)
+- by explicit provider key override (`TranslateAsync(providerKey, translator, text, ...)`)
 
 ## Configuration-based routing
 

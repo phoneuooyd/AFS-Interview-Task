@@ -68,4 +68,18 @@ public class TranslatorProviderFactoryTests
         act.Should().Throw<InvalidOperationException>()
             .WithMessage("*rapidapi*");
     }
+
+    [Fact]
+    public void GivenRegisteredProviderKey_ReturnsProvider()
+    {
+        var provider = new Mock<ITranslatorProvider>();
+        provider.SetupGet(p => p.ProviderKey).Returns("rapidapi");
+        var options = Options.Create(new TranslatorRoutingOptions());
+
+        var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
+
+        var result = sut.GetProviderByKey("rapidapi");
+
+        result.Should().BeSameAs(provider.Object);
+    }
 }

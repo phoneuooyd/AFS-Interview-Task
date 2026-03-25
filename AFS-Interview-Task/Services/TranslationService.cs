@@ -8,6 +8,7 @@ using AFS_Interview_Task.Exceptions;
 using AFS_Interview_Task.Middleware;
 using AFS_Interview_Task.Providers;
 using AFS_Interview_Task.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace AFS_Interview_Task.Services;
 
@@ -16,21 +17,32 @@ public class TranslationService : ITranslationService
     private readonly TranslatorProviderFactory _factory;
     private readonly ITranslationLogRepository _repository;
     private readonly ICorrelationIdAccessor _correlationIdAccessor;
+    private readonly ILogger<TranslationService> _logger;
 
     public TranslationService(
-        TranslatorProviderFactory factory, 
+        TranslatorProviderFactory factory,
         ITranslationLogRepository repository,
-        ICorrelationIdAccessor correlationIdAccessor)
+        ICorrelationIdAccessor correlationIdAccessor,
+        ILogger<TranslationService> logger)
     {
         _factory = factory;
         _repository = repository;
         _correlationIdAccessor = correlationIdAccessor;
+        _logger = logger;
     }
 
     public async Task<TranslateResponse> TranslateAsync(TranslateRequest request, CancellationToken ct)
     {
-        var provider = _factory.GetProvider(request.Translator);
-        return await TranslateInternalAsync(provider, request.Translator, request.Text, ct);
+        var provider = _factory.GetProvider(null);
+
+        if (string.IsNullOrWhiteSpace(request.Translator))
+        {
+            _logger.LogInformation(
+                "No translator provided in request. Provider '{Provider}' will apply its default translator rules.",
+                provider.ProviderKey);
+        }
+
+        return await TranslateInternalAsync(provider, request.Translator ?? string.Empty, request.Text, ct);
     }
 
     public async Task<TranslateResponse> TranslateAsync(string providerKey, string translator, string text, CancellationToken ct)
@@ -57,9 +69,9 @@ public class TranslationService : ITranslationService
         try
         {
             var translatedText = await provider.TranslateAsync(translator, text, ct);
-            
+
             stopwatch.Stop();
-            
+
             log.OutputText = translatedText;
             log.IsSuccess = true;
             log.DurationMs = (int)stopwatch.ElapsedMilliseconds;

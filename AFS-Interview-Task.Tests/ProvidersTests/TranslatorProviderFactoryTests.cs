@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using AFS_Interview_Task.Exceptions;
 using AFS_Interview_Task.Providers;
 using FluentAssertions;
@@ -12,33 +11,33 @@ namespace AFS_Interview_Task.Tests.ProvidersTests;
 public class TranslatorProviderFactoryTests
 {
     [Fact]
-    public void GivenTranslatorMappedToRegisteredProvider_ReturnsProvider()
+    public void GivenNullProviderName_ReturnsDefaultProvider()
     {
         var provider = new Mock<ITranslatorProvider>();
         provider.SetupGet(p => p.ProviderKey).Returns("rapidapi");
 
-        var options = Options.Create(new TranslatorRoutingOptions
+        var options = Options.Create(new LeetSpeakTranslationOptions
         {
-            Translators = new Dictionary<string, string>
-            {
-                ["leetspeak"] = "rapidapi"
-            }
+            Provider = "rapidapi"
         });
 
         var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
 
-        var result = sut.GetProvider("leetspeak");
+        var result = sut.GetProvider(null);
 
         result.Should().BeSameAs(provider.Object);
     }
 
     [Fact]
-    public void GivenTranslatorNotConfigured_ThrowsUnsupportedTranslatorException()
+    public void GivenUnknownProvider_ThrowsUnsupportedTranslatorException()
     {
         var provider = new Mock<ITranslatorProvider>();
         provider.SetupGet(p => p.ProviderKey).Returns("rapidapi");
 
-        var options = Options.Create(new TranslatorRoutingOptions());
+        var options = Options.Create(new LeetSpeakTranslationOptions
+        {
+            Provider = "rapidapi"
+        });
 
         var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
 
@@ -48,25 +47,21 @@ public class TranslatorProviderFactoryTests
     }
 
     [Fact]
-    public void GivenTranslatorMappedToMissingProvider_ThrowsInvalidOperationException()
+    public void GivenDefaultProviderMissingInDi_ThrowsUnsupportedTranslatorException()
     {
         var provider = new Mock<ITranslatorProvider>();
         provider.SetupGet(p => p.ProviderKey).Returns("funtranslations");
 
-        var options = Options.Create(new TranslatorRoutingOptions
+        var options = Options.Create(new LeetSpeakTranslationOptions
         {
-            Translators = new Dictionary<string, string>
-            {
-                ["leetspeak"] = "rapidapi"
-            }
+            Provider = "rapidapi"
         });
 
         var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
 
-        var act = () => sut.GetProvider("leetspeak");
+        var act = () => sut.GetProvider(null);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*rapidapi*");
+        act.Should().Throw<UnsupportedTranslatorException>();
     }
 
     [Fact]
@@ -74,12 +69,34 @@ public class TranslatorProviderFactoryTests
     {
         var provider = new Mock<ITranslatorProvider>();
         provider.SetupGet(p => p.ProviderKey).Returns("rapidapi");
-        var options = Options.Create(new TranslatorRoutingOptions());
+
+        var options = Options.Create(new LeetSpeakTranslationOptions
+        {
+            Provider = "rapidapi"
+        });
 
         var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
 
         var result = sut.GetProviderByKey("rapidapi");
 
         result.Should().BeSameAs(provider.Object);
+    }
+
+    [Fact]
+    public void IsProviderRegistered_ReturnsFalseForNullOrUnknownProvider()
+    {
+        var provider = new Mock<ITranslatorProvider>();
+        provider.SetupGet(p => p.ProviderKey).Returns("rapidapi");
+
+        var options = Options.Create(new LeetSpeakTranslationOptions
+        {
+            Provider = "rapidapi"
+        });
+
+        var sut = new TranslatorProviderFactory(new[] { provider.Object }, options);
+
+        sut.IsProviderRegistered(null).Should().BeFalse();
+        sut.IsProviderRegistered("missing").Should().BeFalse();
+        sut.IsProviderRegistered("rapidapi").Should().BeTrue();
     }
 }
